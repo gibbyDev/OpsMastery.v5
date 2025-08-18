@@ -2,14 +2,11 @@ package server
 
 import (
 	"github.com/gofiber/fiber/v2"
-
-	"OpsMastery.v5/internal/database"
+	"github.com/gofiber/fiber/v2/middleware/cors"
 )
 
 type FiberServer struct {
 	*fiber.App
-
-	db database.Service
 }
 
 func New() *FiberServer {
@@ -18,9 +15,16 @@ func New() *FiberServer {
 			ServerHeader: "OpsMastery.v5",
 			AppName:      "OpsMastery.v5",
 		}),
-
-		db: database.New(),
 	}
+
+	// Correct CORS origin to allow your frontend domain
+	server.App.Use(cors.New(cors.Config{
+		AllowOrigins:     "http://localhost:3000",
+		AllowMethods:     "GET,POST,PUT,DELETE,OPTIONS,PATCH",
+		AllowHeaders:     "Accept,Authorization,Content-Type",
+		AllowCredentials: true, // allow credentials for cookies/auth
+		MaxAge:           300,
+	}))
 
 	return server
 }

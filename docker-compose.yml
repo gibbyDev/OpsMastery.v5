@@ -6,7 +6,7 @@ services:
       target: prod
     restart: unless-stopped
     ports:
-      - ${PORT}:${PORT}
+      - "${PORT}:${PORT}"
     environment:
       APP_ENV: ${APP_ENV}
       PORT: ${PORT}
@@ -16,9 +16,30 @@ services:
       BLUEPRINT_DB_USERNAME: ${BLUEPRINT_DB_USERNAME}
       BLUEPRINT_DB_PASSWORD: ${BLUEPRINT_DB_PASSWORD}
       BLUEPRINT_DB_SCHEMA: ${BLUEPRINT_DB_SCHEMA}
+      EMAIL_FROM: ${EMAIL_FROM}
+      EMAIL_PASSWORD: ${EMAIL_PASSWORD}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      APP_URL: ${APP_URL}
     depends_on:
       psql_bp:
         condition: service_healthy
+    networks:
+      - blueprint
+  chat-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.chat
+    ports:
+      - "5000:5000"
+    networks:
+      - blueprint
+  webrtc-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.webrtc
+    ports:
+      - "4000:4000"
     networks:
       - blueprint
   psql_bp:

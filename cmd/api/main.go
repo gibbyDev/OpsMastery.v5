@@ -1,7 +1,6 @@
 package main
 
 import (
-	"OpsMastery.v5/internal/server"
 	"context"
 	"fmt"
 	"log"
@@ -10,6 +9,10 @@ import (
 	"strconv"
 	"syscall"
 	"time"
+
+	"OpsMastery.v5/internal/database"
+	// "OpsMastery.v5/internal/handlers"
+	"OpsMastery.v5/internal/server"
 
 	_ "github.com/joho/godotenv/autoload"
 )
@@ -40,10 +43,13 @@ func gracefulShutdown(fiberServer *server.FiberServer, done chan bool) {
 }
 
 func main() {
+	// Initialize the database (if not already done elsewhere)
+	database.Init()
 
 	server := server.New()
 
-	server.RegisterFiberRoutes()
+	// Pass the global db instance to RegisterFiberRoutes
+	server.RegisterFiberRoutes(database.DB())
 
 	// Create a done channel to signal when the shutdown is complete
 	done := make(chan bool, 1)
@@ -58,6 +64,9 @@ func main() {
 
 	// Run graceful shutdown in a separate goroutine
 	go gracefulShutdown(server, done)
+
+	// Start the broadcast handler
+	// go handlers.StartBroadcast()
 
 	// Wait for the graceful shutdown to complete
 	<-done
