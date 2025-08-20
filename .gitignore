@@ -29,6 +29,12 @@ tmp/
 main
 *templ.go
 
+gitmvp.md
+TODO.md
+
+Dockerfile
+Dockerfile.*
+
 # OS X generated file
 .DS_Store
 

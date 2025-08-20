@@ -61,6 +61,17 @@ services:
       start_period: 15s
     networks:
       - blueprint
+  seed:
+    build:
+      context: .
+      dockerfile: Dockerfile.seed
+    depends_on:
+      - psql_bp
+    networks:
+      - blueprint
+    environment:
+      BLUEPRINT_DB_HOST: ${BLUEPRINT_DB_HOST}
+    command: ["./seed"]
 
 volumes:
   psql_volume_bp:

@@ -60,5 +60,7 @@ watch:
                 exit 1; \
             fi; \
         fi
+seed:
+	@go run cmd/seed/main.go
 
-.PHONY: all build run test clean watch docker-run docker-down itest
+.PHONY: all build run test clean watch docker-run docker-down itest seed

@@ -3,6 +3,7 @@ package server
 import (
 	"OpsMastery.v5/internal/handlers"
 	"OpsMastery.v5/internal/middleware"
+	"OpsMastery.v5/internal/webrtc_service"
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"
 )
@@ -14,6 +15,7 @@ func (s *FiberServer) RegisterFiberRoutes(db *gorm.DB) {
 	api.Get("/", func(c *fiber.Ctx) error {
 		return c.SendString("Server is running!")
 	})
+	// Authentication routes
 	api.Post("/signup", handlers.SignUp)
 	api.Post("/signin", handlers.SignIn)
 	api.Get("/verify/:token", handlers.VerifyEmail)
@@ -46,20 +48,29 @@ func (s *FiberServer) RegisterFiberRoutes(db *gorm.DB) {
 	// Other protected routes
 	protected.Post("/signout", handlers.SignOut)
 	protected.Post("/auth/refresh", handlers.RefreshToken)
+
+	// Protected routes for tickets
 	protected.Post("/ticket", handlers.CreateTicket)
 	protected.Get("/tickets", handlers.ListTickets)
 	protected.Get("/ticket/:id", handlers.GetTicketByID)
 	protected.Put("/ticket/:id", handlers.UpdateTicketByID)
 	protected.Delete("/ticket/:id", handlers.DeleteTicketByID)
+
+	// Protected routes for chat
 	protected.Get("/chats", handlers.GetChatHistory)
+	protected.Post("/chats", handlers.CreateChat)
+	protected.Post("/chats/:chatId/users", handlers.AddUsersToChat)
+	protected.Get("/chats/user/:userId", handlers.GetChatsForUser)
+	protected.Get("/chats/:chatId/messages", handlers.GetChatMessages)
+	protected.Delete("/chats/:chatId", handlers.DeleteChat)
 
-	// // WebRTC routes
-	// protected.Post("/webrtc/start", func(c *fiber.Ctx) error {
-	// 	go webrtc_service.StartSignalingServer()
-	// 	return c.JSON(fiber.Map{"status": "signaling server started"})
-	// })
+	// WebRTC routes
+	protected.Post("/webrtc/start", func(c *fiber.Ctx) error {
+		go webrtc_service.StartSignalingServer()
+		return c.JSON(fiber.Map{"status": "signaling server started"})
+	})
 
-	// // Chat WebSocket route
+	// Chat WebSocket route
 	// protected.Get("/chat/ws", websocket.New(func(c *websocket.Conn) {
 	// 	token := c.Query("token")
 	// 	if token == "" {
@@ -78,10 +89,10 @@ func (s *FiberServer) RegisterFiberRoutes(db *gorm.DB) {
 	// 	handlers.HandleChat(c, claims)
 	// }))
 
-	// api.Options("/chat/ws", func(c *fiber.Ctx) error {
-	// 	c.Set("Access-Control-Allow-Origin", "http://localhost:3000")
-	// 	c.Set("Access-Control-Allow-Credentials", "true")
-	// 	c.Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
-	// 	return c.SendStatus(fiber.StatusNoContent)
-	// })
+	api.Options("/chat/ws", func(c *fiber.Ctx) error {
+		c.Set("Access-Control-Allow-Origin", "http://localhost:3000")
+		c.Set("Access-Control-Allow-Credentials", "true")
+		c.Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
+		return c.SendStatus(fiber.StatusNoContent)
+	})
 }

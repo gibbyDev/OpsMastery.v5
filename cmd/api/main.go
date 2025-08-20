@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"OpsMastery.v5/internal/database"
-	// "OpsMastery.v5/internal/handlers"
 	"OpsMastery.v5/internal/server"
 
 	_ "github.com/joho/godotenv/autoload"

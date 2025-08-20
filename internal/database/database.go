@@ -44,7 +44,7 @@ func Init() {
 	}
 
 	// Automigrate all models
-	if err := db.AutoMigrate(&models.User{}, &models.Ticket{}, &models.Client{}, &models.ChatMessage{}); err != nil {
+	if err := db.AutoMigrate(&models.User{}, &models.Ticket{}, &models.Client{}, &models.Chat{}, &models.ChatMessage{}); err != nil {
 		log.Fatalf("failed to auto migrate models: %v", err)
 	}
 }

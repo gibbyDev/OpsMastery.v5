@@ -4,6 +4,7 @@ package handlers
 import (
 	"fmt"
 	"sync"
+	"time"
 
 	"OpsMastery.v5/internal/database"
 	"OpsMastery.v5/internal/models"
@@ -12,9 +13,10 @@ import (
 )
 
 var (
-	clients   = make(map[*websocket.Conn]uint) // map connection to user ID
-	broadcast = make(chan Message)
-	mu        sync.Mutex
+	clients     = make(map[*websocket.Conn]uint) // map connection to user ID
+	broadcast   = make(chan Message)
+	mu          sync.Mutex
+	chatClients = make(map[uint]map[*websocket.Conn]bool) // chatID -> set of connections
 )
 
 type Message struct {
@@ -35,33 +37,37 @@ func ChatWebSocket(c *fiber.Ctx) error {
 func HandleChat(c *websocket.Conn, claims map[string]interface{}) {
 	senderID, _ := claims["userID"].(uint)
 
-	mu.Lock()
-	clients[c] = 0 // Not used anymore, but kept for compatibility
-	mu.Unlock()
-
+	// Register connection
+	if chatClients[0] == nil {
+		chatClients[0] = make(map[*websocket.Conn]bool)
+	}
+	chatClients[0][c] = true
 	defer func() {
-		mu.Lock()
-		delete(clients, c)
-		mu.Unlock()
+		delete(chatClients[0], c)
 		c.Close()
 	}()
 
 	for {
-		var msg Message
+		var msg struct {
+			Content string `json:"content"`
+		}
 		if err := c.ReadJSON(&msg); err != nil {
 			break
 		}
-		msg.SenderID = senderID
 
-		// Persist to DB
+		// Save message to DB
 		chatMsg := models.ChatMessage{
-			SenderID:    msg.SenderID,
-			RecipientID: msg.RecipientID,
-			Content:     msg.Content,
+			ChatID:   0,
+			SenderID: senderID,
+			Content:  msg.Content,
+			SentAt:   time.Now(),
 		}
 		database.DB().Create(&chatMsg)
 
-		broadcast <- msg
+		// Broadcast to all clients in the chat
+		for client := range chatClients[0] {
+			client.WriteJSON(chatMsg)
+		}
 	}
 }
 
@@ -117,4 +123,87 @@ func DeleteChatBetweenUsers(c *fiber.Ctx) error {
 		return c.Status(500).JSON(fiber.Map{"error": result.Error.Error()})
 	}
 	return c.JSON(fiber.Map{"deleted": result.RowsAffected})
+}
+
+// Create a new chat (group or direct)
+func CreateChat(c *fiber.Ctx) error {
+	var input struct {
+		Name    string `json:"name"`
+		UserIDs []uint `json:"user_ids"` // IDs of users to add to chat
+	}
+	if err := c.BodyParser(&input); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid input"})
+	}
+	chat := models.Chat{
+		Name: input.Name,
+	}
+	if err := database.DB().Create(&chat).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not create chat"})
+	}
+	// Add users to chat
+	if len(input.UserIDs) > 0 {
+		var users []models.User
+		if err := database.DB().Where("id IN ?", input.UserIDs).Find(&users).Error; err == nil {
+			database.DB().Model(&chat).Association("Users").Append(users)
+		}
+	}
+	return c.Status(fiber.StatusCreated).JSON(chat)
+}
+
+// Add users to an existing chat
+func AddUsersToChat(c *fiber.Ctx) error {
+	chatID := c.Params("chatId")
+	var input struct {
+		UserIDs []uint `json:"user_ids"`
+	}
+	if err := c.BodyParser(&input); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid input"})
+	}
+	var chat models.Chat
+	if err := database.DB().First(&chat, chatID).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Chat not found"})
+	}
+	var users []models.User
+	if err := database.DB().Where("id IN ?", input.UserIDs).Find(&users).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Users not found"})
+	}
+	database.DB().Model(&chat).Association("Users").Append(users)
+	return c.JSON(fiber.Map{"added": len(users)})
+}
+
+// Get all chats for a user (for sidebar)
+func GetChatsForUser(c *fiber.Ctx) error {
+	userID := c.Params("userId")
+	var chats []models.Chat
+	if err := database.DB().Joins("JOIN chat_users ON chat_users.chat_id = chats.id").
+		Where("chat_users.user_id = ?", userID).
+		Preload("Users").
+		Find(&chats).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not fetch chats"})
+	}
+	return c.JSON(chats)
+}
+
+// Get all messages for a chat
+func GetChatMessages(c *fiber.Ctx) error {
+	chatID := c.Params("chatId")
+	var messages []models.ChatMessage
+	if err := database.DB().Where("chat_id = ?", chatID).Order("sent_at asc").Find(&messages).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not fetch messages"})
+	}
+	return c.JSON(messages)
+}
+
+// Delete a chat (and its messages)
+func DeleteChat(c *fiber.Ctx) error {
+	chatID := c.Params("chatId")
+	// Delete messages first
+	if err := database.DB().Where("chat_id = ?", chatID).Delete(&models.ChatMessage{}).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not delete messages"})
+	}
+	// Delete chat
+	if err := database.DB().Delete(&models.Chat{}, chatID).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not delete chat"})
+	}
+	return c.JSON(fiber.Map{"deleted": chatID})
 }

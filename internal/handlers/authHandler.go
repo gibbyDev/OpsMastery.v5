@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"OpsMastery.v5/internal/database"
@@ -20,16 +21,18 @@ func SignUp(c *fiber.Ctx) error {
 		Password string `json:"password"`
 		Name     string `json:"name"`
 		Role     string `json:"role"`
+		Username string `json:"username"`
 	}
 
 	if err := c.BodyParser(&input); err != nil {
 		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	user.Email = input.Email
+	user.Email = strings.ToLower(input.Email)
 	user.Password = input.Password
-	user.Name = input.Name
+	user.Name = strings.ToLower(input.Name)
 	user.Role = input.Role
+	user.Username = strings.ToLower(input.Username)
 	user.Active = false
 	user.VerificationToken = utils.GenerateRandomToken()
 
@@ -40,6 +43,11 @@ func SignUp(c *fiber.Ctx) error {
 	user.Password = string(storedHash)
 
 	log.Printf("Hashed password for user %s: %s\n", user.Email, user.Password)
+
+	var existingUser models.User
+	if err := database.DB().Where("email = ? OR username = ?", user.Email, user.Username).First(&existingUser).Error; err == nil {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Email or username already exists"})
+	}
 
 	if err := database.DB().Create(&user).Error; err != nil {
 		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
@@ -64,8 +72,11 @@ func SignIn(c *fiber.Ctx) error {
 		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Invalid input"})
 	}
 
+	// Force to lowercase for case-insensitive match
+	normalizedInput := strings.ToLower(userInput.EmailOrUsername)
+
 	var user models.User
-	if err := database.DB().Where("email = ? OR username = ?", userInput.EmailOrUsername, userInput.EmailOrUsername).First(&user).Error; err != nil {
+	if err := database.DB().Where("LOWER(email) = ? OR LOWER(username) = ?", normalizedInput, normalizedInput).First(&user).Error; err != nil {
 		return c.Status(http.StatusUnauthorized).JSON(fiber.Map{"error": "Invalid email/username or password"})
 	}
 
