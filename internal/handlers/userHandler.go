@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 	"strconv"
+	"strings"
 
 	"OpsMastery.v5/internal/database"
 	"OpsMastery.v5/internal/models"
@@ -177,9 +178,14 @@ func GetUserProfilePhoto(c *fiber.Ctx) error {
 
 func SearchUsers(c *fiber.Ctx) error {
 	q := c.Query("q")
+	if q == "" {
+		return c.JSON([]models.User{})
+	}
+	normalized := strings.ToLower(q)
 	var users []models.User
-	database.DB().Where(
-		"username ILIKE ? OR email ILIKE ?", "%"+q+"%", "%"+q+"%",
+	database.DB().Debug().Where(
+		"LOWER(username) LIKE ? OR LOWER(email) LIKE ? OR LOWER(name) LIKE ?",
+		"%"+normalized+"%", "%"+normalized+"%", "%"+normalized+"%",
 	).Find(&users)
 	return c.JSON(users)
 }

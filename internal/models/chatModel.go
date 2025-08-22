@@ -8,28 +8,26 @@ import (
 
 type Chat struct {
 	gorm.Model
-	Name string // Optional, useful for group/general chats
+	Name string
 
-	// Nullable → ticket-based chats (optional)
 	TicketID *uint
-	Ticket   *Ticket
+	Ticket   *Ticket `gorm:"constraint:OnUpdate:CASCADE,OnDelete:SET NULL;"`
 
-	// Flag for private 1:1 chats
 	IsPrivate bool `gorm:"default:false"`
 
-	Users    []User `gorm:"many2many:chat_users;"`
-	Messages []ChatMessage
+	Users    []User        `gorm:"many2many:chat_users;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
+	Messages []ChatMessage `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
 }
 
 type ChatMessage struct {
 	gorm.Model
 	ChatID uint
-	Chat   Chat
+	Chat   Chat `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
 
 	SentAt time.Time
 
 	SenderID uint
-	Sender   User
+	Sender   User `gorm:"constraint:OnUpdate:CASCADE,OnDelete:SET NULL;"`
 
 	Content string `gorm:"not null"`
 }

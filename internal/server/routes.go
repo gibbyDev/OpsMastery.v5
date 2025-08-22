@@ -25,6 +25,10 @@ func (s *FiberServer) RegisterFiberRoutes(db *gorm.DB) {
 	// Public route to get a user's profile photo by ID
 	api.Get("/users/:id/profile_photo", handlers.GetUserProfilePhoto)
 
+	// OAuth routes
+	s.Get("/auth/:provider", handlers.OAuthLogin)
+	s.Get("/auth/:provider/callback", handlers.OAuthCallback)
+
 	// Protected routes (require authentication)
 	protected := api.Group("")
 	protected.Use(middleware.JWTMiddleware)

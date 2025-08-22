@@ -128,25 +128,32 @@ func DeleteChatBetweenUsers(c *fiber.Ctx) error {
 // Create a new chat (group or direct)
 func CreateChat(c *fiber.Ctx) error {
 	var input struct {
-		Name    string `json:"name"`
-		UserIDs []uint `json:"user_ids"` // IDs of users to add to chat
+		Name      string `json:"name"`
+		UserIDs   []uint `json:"user_ids"`
+		IsPrivate bool   `json:"is_private"`
+		TicketID  *uint  `json:"ticket_id"`
 	}
 	if err := c.BodyParser(&input); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid input"})
 	}
+
 	chat := models.Chat{
-		Name: input.Name,
+		Name:      input.Name,
+		IsPrivate: input.IsPrivate,
+		TicketID:  input.TicketID,
 	}
+
 	if err := database.DB().Create(&chat).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not create chat"})
 	}
-	// Add users to chat
+
 	if len(input.UserIDs) > 0 {
 		var users []models.User
 		if err := database.DB().Where("id IN ?", input.UserIDs).Find(&users).Error; err == nil {
 			database.DB().Model(&chat).Association("Users").Append(users)
 		}
 	}
+
 	return c.Status(fiber.StatusCreated).JSON(chat)
 }
 
@@ -178,6 +185,7 @@ func GetChatsForUser(c *fiber.Ctx) error {
 	if err := database.DB().Joins("JOIN chat_users ON chat_users.chat_id = chats.id").
 		Where("chat_users.user_id = ?", userID).
 		Preload("Users").
+		Preload("Messages").
 		Find(&chats).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not fetch chats"})
 	}
@@ -197,11 +205,9 @@ func GetChatMessages(c *fiber.Ctx) error {
 // Delete a chat (and its messages)
 func DeleteChat(c *fiber.Ctx) error {
 	chatID := c.Params("chatId")
-	// Delete messages first
 	if err := database.DB().Where("chat_id = ?", chatID).Delete(&models.ChatMessage{}).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not delete messages"})
 	}
-	// Delete chat
 	if err := database.DB().Delete(&models.Chat{}, chatID).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not delete chat"})
 	}
