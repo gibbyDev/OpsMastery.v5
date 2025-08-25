@@ -25,6 +25,15 @@ type Message struct {
 	Content     string `json:"content"`
 }
 
+type Chat struct {
+	ID        uint                 `json:"id"`
+	Name      string               `json:"name"`
+	TicketID  *uint                `json:"ticket_id,omitempty"`
+	IsPrivate bool                 `json:"is_private"`
+	Users     []models.User        `json:"users"`
+	Messages  []models.ChatMessage `json:"messages"`
+}
+
 // WebSocket chat endpoint
 func ChatWebSocket(c *fiber.Ctx) error {
 	// Upgrade to WebSocket
