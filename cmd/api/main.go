@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"OpsMastery.v5/internal/database"
+	"OpsMastery.v5/internal/oauth"
 	"OpsMastery.v5/internal/server"
 
 	_ "github.com/joho/godotenv/autoload"
@@ -45,6 +46,9 @@ func main() {
 	// Initialize the database (if not already done elsewhere)
 	database.Init()
 
+	// Initialize OAuth providers (Google, GitHub, etc.)
+	oauth.InitProviders()
+
 	server := server.New()
 
 	// Pass the global db instance to RegisterFiberRoutes
@@ -63,9 +67,6 @@ func main() {
 
 	// Run graceful shutdown in a separate goroutine
 	go gracefulShutdown(server, done)
-
-	// Start the broadcast handler
-	// go handlers.StartBroadcast()
 
 	// Wait for the graceful shutdown to complete
 	<-done

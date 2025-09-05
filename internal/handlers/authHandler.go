@@ -357,21 +357,40 @@ func validateResetToken(token string) (bool, error) {
 
 // Generic OAuth login handler
 func OAuthLogin(c *fiber.Ctx) error {
+	provider := c.Params("provider")
 	// Set provider in query for gothic
-	c.Request().URI().SetQueryString("provider=" + c.Params("provider"))
+	req := c.Request()
+	uri := req.URI()
+	uri.SetQueryString("provider=" + provider)
 	return adaptor.HTTPHandlerFunc(gothic.BeginAuthHandler)(c)
 }
 
-// Generic OAuth callback handler
 func OAuthCallback(c *fiber.Ctx) error {
-	c.Request().URI().SetQueryString("provider=" + c.Params("provider"))
-	handler := adaptor.HTTPHandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	provider := c.Params("provider")
+	req := c.Request()
+	req.URI().SetQueryString("provider=" + provider)
+
+	return adaptor.HTTPHandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		user, err := gothic.CompleteUserAuth(w, r)
 		if err != nil {
-			http.Error(w, "OAuth error: "+err.Error(), http.StatusInternalServerError)
+			http.Error(w, err.Error(), http.StatusUnauthorized)
 			return
 		}
+
+		// Check if user with this email already exists
+		var existingUser models.User
+		email := strings.ToLower(user.Email)
+		if err := database.DB().Where("LOWER(email) = ?", email).First(&existingUser).Error; err == nil {
+			// User exists, do not allow OAuth sign up
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "This email already exists, please sign in.",
+			})
+			return
+		}
+
+		// ...proceed with creating new user from OAuth profile...
+		// (your existing logic here)
 		json.NewEncoder(w).Encode(user)
-	})
-	return handler(c)
+	})(c)
 }
